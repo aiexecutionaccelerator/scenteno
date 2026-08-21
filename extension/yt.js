@@ -38,6 +38,14 @@
     }
     throw new Error(`Timeout waiting for ${what}`);
   }
+  // Full pointer sequence at the element's centre — Polymer/YouTube menus ignore bare .click() in Firefox
+  function realClick(el) {
+    const r = el.getBoundingClientRect();
+    const opts = { bubbles: true, cancelable: true, composed: true, clientX: r.left + r.width / 2, clientY: r.top + r.height / 2, button: 0, buttons: 1, pointerId: 1, pointerType: "mouse", isPrimary: true };
+    for (const type of ["pointerover", "pointerenter", "mouseover", "pointerdown", "mousedown"]) el.dispatchEvent(new (type.startsWith("pointer") ? PointerEvent : MouseEvent)(type, opts));
+    el.focus?.();
+    for (const type of ["pointerup", "mouseup", "click"]) el.dispatchEvent(new (type.startsWith("pointer") ? PointerEvent : MouseEvent)(type, { ...opts, buttons: 0 }));
+  }
   const $ = (sel, root = document) => root.querySelector(sel);
   const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 
@@ -116,7 +124,7 @@
     }, "enabled Comment button");
     submit.click();
     const thread = await waitFor(() => threadWith(key), "our posted comment to appear");
-    lastAuthor = (thread.querySelector("#author-text, #header-author #author-text, a#author-text")?.innerText || "?").trim();
+    lastAuthor = (thread.querySelector("#author-text, #header-author #author-text, a#author-text, #author-text span, yt-formatted-string#author-text, [id*='author'] a")?.innerText || "?").trim();
     return thread;
   }
   let lastAuthor = "?"; // channel name the last comment was posted as (diagnostic)
@@ -128,17 +136,22 @@
     thread.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
     const menu = await waitFor(() => $("#action-menu button", thread), "thread action menu");
     menu.click();
-    let pinItem;
+    // Each menu entry is nested (ytd-menu-service-item-renderer > tp-yt-paper-item > ...); in
+    // Firefox only a real pointer sequence on the innermost item triggers the action.
+    const pinCandidates = () => $$('tp-yt-paper-listbox [role="menuitem"], ytd-menu-popup-renderer [role="menuitem"], ytd-menu-service-item-renderer, tp-yt-paper-item')
+      .filter((el) => visible(el) && el.innerText.trim().split("\n")[0] === "Pin")
+      .sort((a, b) => (a.contains(b) ? 1 : b.contains(a) ? -1 : 0)); // innermost first
     try {
-      pinItem = await waitFor(
-        () => $$('tp-yt-paper-listbox [role="menuitem"], ytd-menu-popup-renderer [role="menuitem"], ytd-menu-service-item-renderer')
-                .find((el) => visible(el) && el.innerText.trim().split("\n")[0] === "Pin"),
-        '"Pin" menu item'
-      );
+      await waitFor(() => pinCandidates().length, '"Pin" menu item');
     } catch (e) {
       throw new Error(`${e.message} (menu offered: ${menuItems().join(" / ") || "nothing"}; posted as: ${lastAuthor})`);
     }
-    pinItem.click();
+    const menuOpen = () => menuItems().length > 0;
+    for (const el of pinCandidates()) {
+      realClick(el);
+      try { await waitFor(() => !menuOpen(), "menu to close", 3000); break; } catch {}
+    }
+    if (menuOpen()) throw new Error(`Pin click ignored — menu stayed open (items: ${menuItems().join(" / ")}; posted as: ${lastAuthor})`);
     // YouTube only asks for confirmation when another comment is already pinned; a first pin
     // applies immediately. After pinning, YouTube re-renders the comment as a NEW element at
     // the top of the list, so look for the badge anywhere on the page (we verified there was
@@ -150,7 +163,7 @@
       `pinned badge or confirm dialog (posted as: ${lastAuthor}; menu still open: ${menuItems().join(" / ") || "no"})`
     );
     if (outcome === "dialog") {
-      $$(confirmSel).find(visible).click();
+      realClick($$(confirmSel).find(visible));
       await waitFor(badge, "pinned badge");
     }
   }
