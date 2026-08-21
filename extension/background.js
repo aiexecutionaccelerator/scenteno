@@ -26,14 +26,21 @@ chrome.runtime.onMessage.addListener((msg, _s, sendResponse) => {
 });
 
 // ---------- tab helpers ----------
-function navigate(tabId, url) {
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => { cleanup(); reject(new Error("page load timeout")); }, 30000);
-    const onUpdated = (id, info) => { if (id === tabId && info.status === "complete") { cleanup(); resolve(); } };
-    const cleanup = () => { clearTimeout(timer); chrome.tabs.onUpdated.removeListener(onUpdated); };
-    chrome.tabs.onUpdated.addListener(onUpdated);
-    chrome.tabs.update(tabId, { url }).catch((e) => { cleanup(); reject(e); });
-  });
+// Poll tabs.get() instead of waiting on onUpdated: Firefox suspends event pages that are
+// only waiting on timers/events, and a same-URL update may never emit "complete".
+async function waitForLoad(tabId, timeoutMs = 30000) {
+  const end = Date.now() + timeoutMs;
+  await sleep(500);
+  while (Date.now() < end) {
+    const t = await chrome.tabs.get(tabId);
+    if (t.status === "complete") { await sleep(500); return; }
+    await sleep(300);
+  }
+  throw new Error("page load timeout");
+}
+async function navigate(tabId, url) {
+  await chrome.tabs.update(tabId, { url });
+  await waitForLoad(tabId);
 }
 
 async function inject(tabId) {
@@ -125,8 +132,9 @@ async function run(kind, dryRun) {
   try {
     await setProgress(kind, { stage: "starting" });
     tab = await chrome.tabs.create({ url: "https://www.youtube.com/", active: false });
-    await sleep(1500); // let the initial load begin before we listen for "complete"
-    await navigate(tab.id, "https://www.youtube.com/");
+    await setProgress(kind, { stage: "loading youtube.com" });
+    await waitForLoad(tab.id);
+    await setProgress(kind, { stage: "checking sign-in" });
     if (!(await isSignedIn(tab.id))) {
       await saveFailure(tab.id, "signin", "Not signed in to YouTube — sign in as @Scenteno in this browser and run again.");
       await recordRun(kind, dryRun, results, startedAt, "Not signed in to YouTube");
@@ -134,6 +142,7 @@ async function run(kind, dryRun) {
       return;
     }
 
+    await setProgress(kind, { stage: "collecting newest items" });
     await navigate(tab.id, cfg.listing);
     await inject(tab.id);
     const urls = await ask(tab.id, { cmd: "collect", part: cfg.part, limit: LIMIT, scrolls: cfg.scrolls });
