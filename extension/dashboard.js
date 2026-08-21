@@ -36,6 +36,35 @@ $("#clearFail")?.addEventListener("click", async () => {
   if (confirm("Clear all saved failures?")) await chrome.storage.local.remove("failures");
 });
 
+// ---------- comment text editor ----------
+const DEFAULT_COMMENTS = {
+  bos: "https://scenteno.com/yt12  Join the Brotherhood of Scent to get fragrance advice from a supportive community — and share advice, opinions, and experience with fragrance brothers.",
+  hod: "https://www.realmenrealstyle.com/best-frags  Ready to upgrade your fragrance game? Check out House of Dastan here.",
+  hodKeyword: "house of dastan",
+};
+async function loadComments() {
+  if (IN_EXTENSION) return (await chrome.storage.local.get("comments")).comments;
+  const r = await fetch("/api/comments", { cache: "no-store" }); return r.ok ? r.json() : null;
+}
+async function showComments() {
+  const c = { ...DEFAULT_COMMENTS, ...((await loadComments()) || {}) };
+  $("#cBos").value = c.bos; $("#cHod").value = c.hod; $("#cKw").value = c.hodKeyword;
+  $("#commentsStatus").textContent = IN_EXTENSION
+    ? "Applies to this browser only. If a Railway server is configured, its text takes precedence."
+    : "Applies to every browser reporting to this server, from its next run.";
+}
+$("#saveComments").addEventListener("click", async () => {
+  const value = { bos: $("#cBos").value.trim(), hod: $("#cHod").value.trim(), hodKeyword: $("#cKw").value.trim().toLowerCase() };
+  if (!value.bos || !value.hod) return ($("#commentsStatus").textContent = "Both comments are required.");
+  if (IN_EXTENSION) await chrome.storage.local.set({ comments: value });
+  else {
+    const r = await fetch("/api/comments", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(value) });
+    if (!r.ok) return ($("#commentsStatus").textContent = "Save failed: HTTP " + r.status);
+  }
+  $("#commentsStatus").textContent = "Saved " + new Date().toLocaleTimeString();
+});
+showComments();
+
 ["#runKind", "#q", "#itemKind", "#itemStatus"].forEach((s) => $(s).addEventListener("input", render));
 
 // ---------- render ----------

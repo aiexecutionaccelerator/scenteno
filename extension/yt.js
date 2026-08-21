@@ -9,7 +9,12 @@
     "from a supportive community — and share advice, opinions, and experience with fragrance brothers.";
   const COMMENT_HOD =
     "https://www.realmenrealstyle.com/best-frags  Ready to upgrade your fragrance game? Check out House of Dastan here.";
-  const OUR_KEYS = ["scenteno.com/yt12", "realmenrealstyle.com/best-frags"];
+  const DEFAULTS = { bos: COMMENT_BOS, hod: COMMENT_HOD, hodKeyword: "house of dastan" };
+  const LEGACY_KEYS = ["scenteno.com/yt12", "realmenrealstyle.com/best-frags"];
+  // Detection key = first URL in the comment minus protocol/www (what YouTube displays)
+  const keyOf = (text) => (text.match(/https?:\/\/\S+/)?.[0] || text.slice(0, 40)).replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "");
+  let cfg = DEFAULTS;
+  const ourKeys = () => [...new Set([keyOf(cfg.bos), keyOf(cfg.hod), ...LEGACY_KEYS])];
   const PROMO_KEYWORDS = ["% off", "sale", "off"];
   const STEP_TIMEOUT = 15000;
 
@@ -30,9 +35,8 @@
   const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 
   function getComment(subject) {
-    if (subject.toLowerCase().includes("house of dastan"))
-      return { text: COMMENT_HOD, key: "realmenrealstyle.com/best-frags" };
-    return { text: COMMENT_BOS, key: "scenteno.com/yt12" };
+    if (cfg.hodKeyword && subject.toLowerCase().includes(cfg.hodKeyword)) return { text: cfg.hod, key: keyOf(cfg.hod) };
+    return { text: cfg.bos, key: keyOf(cfg.bos) };
   }
 
   const threads = () => $$("ytd-comment-thread-renderer");
@@ -129,7 +133,8 @@
     }
   }
 
-  async function process(kind, dryRun) {
+  async function process(kind, dryRun, comments) {
+    cfg = { ...DEFAULTS, ...(comments || {}) };
     // page.title is set late on SPA loads; wait until it's a real one
     const title = await waitFor(() => {
       const t = document.title.trim();
@@ -148,7 +153,7 @@
     if (pinnedPresent()) return { status: "already pinned", title };
     if (dryRun) return { status: "DRY would comment+pin", title };
 
-    const ours = OUR_KEYS.map(threadWith).find(Boolean);
+    const ours = ourKeys().map(threadWith).find(Boolean);
     if (ours) { await pinThread(ours); return { status: "pinned existing", title }; }
 
     const thread = await postComment(text, key);
@@ -161,7 +166,7 @@
   if (typeof chrome === "undefined" || !chrome.runtime?.onMessage) return; // loaded outside the extension (tests)
   chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     if (msg?.target !== "yt") return;
-    const job = msg.cmd === "collect" ? collect(msg.part, msg.limit, msg.scrolls) : process(msg.kind, msg.dryRun);
+    const job = msg.cmd === "collect" ? collect(msg.part, msg.limit, msg.scrolls) : process(msg.kind, msg.dryRun, msg.comments);
     job.then((r) => sendResponse({ ok: true, result: r }))
        .catch((e) => sendResponse({ ok: false, error: String(e && e.message || e), html: document.documentElement.outerHTML.slice(0, 300000) }));
     return true; // async response

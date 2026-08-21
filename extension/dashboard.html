@@ -39,6 +39,8 @@
   .fail .meta small { color:var(--muted); }
   .empty { padding:24px; color:var(--muted); text-align:center; }
   a { color:inherit; }
+  textarea, #cKw { width:100%; font:inherit; padding:6px 8px; border:1px solid var(--line); border-radius:6px; background:var(--bg); color:var(--fg); margin-top:4px; }
+  #cKw { width:170px; display:inline-block; margin:0 0 0 4px; }
 </style>
 </head>
 <body>
@@ -67,6 +69,15 @@
   <section>
     <h2>Items <span class="controls"><input type="search" id="q" placeholder="filter id / status"><select id="itemKind"><option value="">all</option><option value="shorts">shorts</option><option value="posts">posts</option></select><select id="itemStatus"><option value="">any status</option></select></span></h2>
     <div class="wrap"><table><thead><tr><th>Item</th><th>Kind</th><th>Status</th><th>Last touched</th><th></th></tr></thead><tbody id="items"></tbody></table></div>
+  </section>
+
+  <section>
+    <h2>Comment text <span class="controls"><button id="saveComments">Save</button></span></h2>
+    <div style="padding:12px 14px;display:grid;gap:10px">
+      <label>Default comment (Brotherhood of Scent)<br><textarea id="cBos" rows="3"></textarea></label>
+      <label>House of Dastan comment &mdash; used when the title/post contains <input id="cKw" style="width:160px"><br><textarea id="cHod" rows="2"></textarea></label>
+      <div id="commentsStatus" style="color:var(--muted);font-size:12px"></div>
+    </div>
   </section>
 
   <section>

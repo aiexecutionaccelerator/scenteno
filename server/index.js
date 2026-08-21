@@ -21,6 +21,7 @@ await pool.query(`
     UNIQUE (source, kind, started_at));
   CREATE TABLE IF NOT EXISTS items (
     id TEXT PRIMARY KEY, kind TEXT, status TEXT, ts TIMESTAMPTZ, source TEXT);
+  CREATE TABLE IF NOT EXISTS config (key TEXT PRIMARY KEY, value JSONB);
   CREATE TABLE IF NOT EXISTS failures (
     id BIGSERIAL PRIMARY KEY, source TEXT, item_id TEXT, error TEXT, ts TIMESTAMPTZ,
     screenshot TEXT, html TEXT, UNIQUE (source, item_id, ts));
@@ -66,6 +67,17 @@ app.post("/api/runs", cors, async (req, res) => {
   }
 });
 
+// Comment texts — read by the extension at the start of each run (token), edited from the dashboard (password).
+async function getComments() {
+  const { rows } = await pool.query(`SELECT value FROM config WHERE key = 'comments'`);
+  return rows[0]?.value || null;
+}
+app.options("/api/config", cors, (_q, res) => res.sendStatus(204));
+app.get("/api/config", cors, async (req, res) => {
+  if (req.get("authorization") !== `Bearer ${INGEST_TOKEN}`) return res.status(401).json({ error: "bad token" });
+  res.json({ comments: await getComments() });
+});
+
 // ---------- dashboard (password-protected) ----------
 app.use(basicAuth);
 app.get("/api/data", async (_req, res) => {
@@ -78,6 +90,15 @@ app.get("/api/data", async (_req, res) => {
   ]);
   const state = Object.fromEntries(items.rows.map((r) => [r.id, { kind: r.kind, status: r.status, ts: r.ts, source: r.source }]));
   res.json({ runs: runs.rows, state, failures: failures.rows });
+});
+app.get("/api/comments", async (_req, res) => res.json(await getComments()));
+app.put("/api/comments", async (req, res) => {
+  const { bos, hod, hodKeyword } = req.body || {};
+  if (typeof bos !== "string" || typeof hod !== "string" || !bos.trim() || !hod.trim())
+    return res.status(400).json({ error: "bos and hod must be non-empty strings" });
+  const value = { bos: bos.trim(), hod: hod.trim(), hodKeyword: (hodKeyword || "house of dastan").trim().toLowerCase() };
+  await pool.query(`INSERT INTO config (key, value) VALUES ('comments', $1) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`, [JSON.stringify(value)]);
+  res.json(value);
 });
 app.get("/api/failures/:id/html", async (req, res) => {
   const { rows } = await pool.query(`SELECT html FROM failures WHERE id = $1`, [req.params.id]);
@@ -94,7 +115,7 @@ app.listen(PORT, () => console.log(`dashboard on :${PORT}`));
 
 // ---------- helpers ----------
 function cors(_req, res, next) {
-  res.set({ "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "Authorization, Content-Type", "Access-Control-Allow-Methods": "POST, OPTIONS" });
+  res.set({ "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "Authorization, Content-Type", "Access-Control-Allow-Methods": "GET, POST, OPTIONS" });
   next();
 }
 function basicAuth(req, res, next) {

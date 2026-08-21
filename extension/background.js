@@ -116,6 +116,22 @@ async function report(run) {
   await chrome.storage.local.set({ pending: kept.slice(-20), ...(kept.length ? {} : { lastReportError: null }) });
 }
 
+// Comment texts: server copy wins (edited on the Railway dashboard), then the local dashboard
+// copy, then the defaults baked into yt.js. Cached locally so a server outage changes nothing.
+async function loadComments() {
+  const { settings = {}, comments = null } = await chrome.storage.local.get(["settings", "comments"]);
+  if (settings.serverUrl && settings.token) {
+    try {
+      const res = await fetch(settings.serverUrl.replace(/\/$/, "") + "/api/config", { headers: { Authorization: `Bearer ${settings.token}` } });
+      if (res.ok) {
+        const { comments: remote } = await res.json();
+        if (remote) { await chrome.storage.local.set({ comments: remote }); return remote; }
+      }
+    } catch {}
+  }
+  return comments;
+}
+
 async function setProgress(kind, progress) {
   await chrome.storage.local.set({ progress: { kind, ...progress, ts: new Date().toISOString() } });
 }
@@ -153,6 +169,7 @@ async function run(kind, dryRun) {
       return;
     }
 
+    const comments = await loadComments();
     const { state = {} } = await chrome.storage.local.get("state");
     for (const [i, url] of urls.entries()) {
       const id = url.split(cfg.part)[1].replace(/\/$/, "");
@@ -164,7 +181,7 @@ async function run(kind, dryRun) {
       try {
         await navigate(tab.id, url);
         await inject(tab.id);
-        ({ status } = await ask(tab.id, { cmd: "process", kind, dryRun }));
+        ({ status } = await ask(tab.id, { cmd: "process", kind, dryRun, comments }));
       } catch (e) {
         status = `ERR ${e.message}`.slice(0, 120);
         await saveFailure(tab.id, id, e.message, e.html);
