@@ -58,19 +58,26 @@
 
   // ---------- open comment section ----------
   async function openComments(kind) {
+    const boxVisible = () => visible($("ytd-comment-simplebox-renderer #placeholder-area"));
     if (kind === "shorts") {
-      // 2026 layout: <button aria-label="View N comments"> (no id). Older: #comments-button.
-      const btn = await waitFor(
-        () => $$('button[aria-label^="View"][aria-label*="comment" i], #comments-button button').find(visible),
-        "Shorts comments button"
-      );
-      btn.click();
+      // YouTube remembers the panel state between Shorts: after the first one, the comments
+      // panel is usually already open (and the button no longer says "View N comments").
+      await sleep(1500);
+      if (!boxVisible()) {
+        // 2026 layout: <button aria-label="View N comments"> (no id). Older: #comments-button.
+        const btn = await waitFor(
+          () => $$('button[aria-label^="View"][aria-label*="comment" i], #comments-button button, button[aria-label*="comments" i]')
+                  .find((b) => visible(b) && !b.closest("ytd-comment-simplebox-renderer")),
+          "Shorts comments button"
+        );
+        btn.click();
+      }
     } else {
       // ytd-comments is zero-height until scrolled near; scrolling triggers the lazy load
       window.scrollTo({ top: 3000, behavior: "instant" });
     }
     try {
-      await waitFor(() => visible($("ytd-comment-simplebox-renderer #placeholder-area")), "comment box");
+      await waitFor(boxVisible, "comment box");
     } catch {
       return false;
     }
@@ -109,13 +116,17 @@
       '"Pin" menu item'
     );
     pinItem.click();
-    const confirm = await waitFor(
-      () => $$("yt-confirm-dialog-renderer #confirm-button button, yt-confirm-dialog-renderer #confirm-button, #confirm-button button")
-              .find(visible),
-      "pin confirm dialog"
+    // YouTube only asks for confirmation when another comment is already pinned; for a first
+    // pin it pins immediately. Accept either: badge appears, or a confirm dialog shows up.
+    const confirmSel = "yt-confirm-dialog-renderer #confirm-button button, yt-confirm-dialog-renderer #confirm-button, #confirm-button button";
+    const outcome = await waitFor(
+      () => (thread.querySelector("ytd-pinned-comment-badge-renderer") && "pinned") || ($$(confirmSel).find(visible) && "dialog"),
+      "pinned badge or confirm dialog"
     );
-    confirm.click();
-    await waitFor(() => $("ytd-pinned-comment-badge-renderer"), "pinned badge");
+    if (outcome === "dialog") {
+      $$(confirmSel).find(visible).click();
+      await waitFor(() => thread.querySelector("ytd-pinned-comment-badge-renderer") || $("ytd-pinned-comment-badge-renderer"), "pinned badge");
+    }
   }
 
   async function process(kind, dryRun) {

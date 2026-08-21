@@ -133,13 +133,20 @@ def pin_thread(page, thread):
     thread.hover()
     thread.locator("#action-menu button").first.click(timeout=STEP_TIMEOUT)
     page.get_by_role("menuitem", name="Pin").first.click(timeout=STEP_TIMEOUT)
-    # confirm dialog ("Pin comment?")
+    # YouTube only asks for confirmation when another comment is already pinned;
+    # a first pin applies immediately. Accept either outcome.
+    badge = thread.locator("ytd-pinned-comment-badge-renderer")
     confirm = page.locator("yt-confirm-dialog-renderer #confirm-button")
-    try:
-        confirm.first.click(timeout=5_000)
-    except PWTimeout:
-        page.get_by_role("button", name="Pin", exact=True).first.click(timeout=STEP_TIMEOUT)
-    page.locator("ytd-pinned-comment-badge-renderer").first.wait_for(state="visible", timeout=STEP_TIMEOUT)
+    deadline = time.time() + STEP_TIMEOUT / 1000
+    while time.time() < deadline:
+        if badge.count() > 0:
+            return
+        if confirm.count() > 0 and confirm.first.is_visible():
+            confirm.first.click()
+            badge.first.wait_for(state="visible", timeout=STEP_TIMEOUT)
+            return
+        time.sleep(0.25)
+    raise PWTimeout("neither pinned badge nor confirm dialog appeared")
 
 
 def post_comment(page, text, detect_key):
@@ -165,12 +172,17 @@ def post_comment(page, text, detect_key):
 def open_comments(page, kind):
     """Make the comment section + comment box visible. Returns False if the comment
     box never appears (comments off, not signed in, or layout change)."""
+    box = page.locator("ytd-comment-simplebox-renderer #placeholder-area").first
     if kind == "shorts":
-        # 2026 layout: <button aria-label="View N comments"> (no id). Older: #comments-button.
-        btn = page.locator('button[aria-label^="View"][aria-label*="comment" i]:visible, '
-                           "#comments-button button:visible").first
-        btn.wait_for(state="visible", timeout=STEP_TIMEOUT)
-        btn.click()
+        # YouTube remembers the panel state between Shorts: after the first one the
+        # comments panel is usually already open, so only click if the box isn't there yet.
+        time.sleep(1.5)
+        if not box.is_visible():
+            # 2026 layout: <button aria-label="View N comments"> (no id). Older: #comments-button.
+            btn = page.locator('button[aria-label^="View"][aria-label*="comment" i]:visible, '
+                               "#comments-button button:visible").first
+            btn.wait_for(state="visible", timeout=STEP_TIMEOUT)
+            btn.click()
     else:
         # ytd-comments is zero-height until scrolled near; plain scroll triggers the lazy load
         page.evaluate("window.scrollTo({top: 3000, behavior: 'instant'})")
