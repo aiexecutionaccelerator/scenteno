@@ -115,19 +115,29 @@
       return visible(b) && !b.disabled && b.getAttribute("aria-disabled") !== "true" && b;
     }, "enabled Comment button");
     submit.click();
-    return waitFor(() => threadWith(key), "our posted comment to appear");
+    const thread = await waitFor(() => threadWith(key), "our posted comment to appear");
+    lastAuthor = (thread.querySelector("#author-text, #header-author #author-text, a#author-text")?.innerText || "?").trim();
+    return thread;
   }
+  let lastAuthor = "?"; // channel name the last comment was posted as (diagnostic)
+  const menuItems = () => $$('tp-yt-paper-listbox [role="menuitem"], ytd-menu-popup-renderer [role="menuitem"], ytd-menu-service-item-renderer')
+    .filter(visible).map((el) => el.innerText.trim().split("\n")[0]);
 
   async function pinThread(thread) {
     thread.scrollIntoView({ block: "center" });
     thread.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
     const menu = await waitFor(() => $("#action-menu button", thread), "thread action menu");
     menu.click();
-    const pinItem = await waitFor(
-      () => $$('tp-yt-paper-listbox [role="menuitem"], ytd-menu-popup-renderer [role="menuitem"], ytd-menu-service-item-renderer')
-              .find((el) => visible(el) && el.innerText.trim().split("\n")[0] === "Pin"),
-      '"Pin" menu item'
-    );
+    let pinItem;
+    try {
+      pinItem = await waitFor(
+        () => $$('tp-yt-paper-listbox [role="menuitem"], ytd-menu-popup-renderer [role="menuitem"], ytd-menu-service-item-renderer')
+                .find((el) => visible(el) && el.innerText.trim().split("\n")[0] === "Pin"),
+        '"Pin" menu item'
+      );
+    } catch (e) {
+      throw new Error(`${e.message} (menu offered: ${menuItems().join(" / ") || "nothing"}; posted as: ${lastAuthor})`);
+    }
     pinItem.click();
     // YouTube only asks for confirmation when another comment is already pinned; a first pin
     // applies immediately. After pinning, YouTube re-renders the comment as a NEW element at
@@ -137,7 +147,7 @@
     const badge = () => $("ytd-pinned-comment-badge-renderer") || threads().some((t) => t.innerText.includes("Pinned by"));
     const outcome = await waitFor(
       () => (badge() && "pinned") || ($$(confirmSel).find(visible) && "dialog"),
-      "pinned badge or confirm dialog"
+      `pinned badge or confirm dialog (posted as: ${lastAuthor}; menu still open: ${menuItems().join(" / ") || "no"})`
     );
     if (outcome === "dialog") {
       $$(confirmSel).find(visible).click();
@@ -170,7 +180,7 @@
 
     const thread = await postComment(text, key);
     await pinThread(thread);
-    return { status: "commented+pinned", title };
+    return { status: "commented+pinned", title, author: lastAuthor };
   }
 
   // Failure evidence: the comments section (where everything we do happens) plus any open
