@@ -163,8 +163,16 @@
       `pinned badge or confirm dialog (posted as: ${lastAuthor}; menu still open: ${menuItems().join(" / ") || "no"})`
     );
     if (outcome === "dialog") {
-      realClick($$(confirmSel).find(visible));
-      await waitFor(badge, "pinned badge");
+      const dialogText = ($("yt-confirm-dialog-renderer")?.innerText || "").replace(/\s+/g, " ").trim().slice(0, 160);
+      const dialogOpen = () => $$(confirmSel).some(visible);
+      // innermost clickable first: the <button> inside #confirm-button, then the wrapper
+      const candidates = () => $$(confirmSel).filter(visible).sort((a, b) => (a.contains(b) ? 1 : b.contains(a) ? -1 : 0));
+      for (const el of candidates()) {
+        realClick(el);
+        try { await waitFor(() => !dialogOpen(), "dialog to close", 3000); break; } catch {}
+      }
+      if (dialogOpen()) throw new Error(`Confirm click ignored — dialog stayed open ("${dialogText}")`);
+      await waitFor(badge, `pinned badge after confirming dialog ("${dialogText}")`);
     }
   }
 
@@ -200,9 +208,17 @@
   // dialog/menu — a full YouTube page is several MB and the first 300 KB is just headers.
   function evidenceHtml() {
     const parts = ["<!-- url: " + location.href + " | title: " + document.title + " -->"];
-    for (const sel of ["ytd-popup-container", "ytd-comments#comments", "ytd-engagement-panel-section-list-renderer[target-id*='comment']"]) {
-      const el = $(sel);
-      if (el) parts.push("<!-- " + sel + " -->\n" + el.outerHTML.slice(0, 250000));
+    const firstThread = $("ytd-comment-thread-renderer");
+    const els = [
+      ["ytd-popup-container", $("ytd-popup-container")],
+      ["comment box", $("ytd-comment-simplebox-renderer")?.closest("ytd-comments, ytd-item-section-renderer") || $("ytd-comment-simplebox-renderer")],
+      ["threads container", firstThread?.closest("ytd-item-section-renderer, ytd-comments, #contents") || firstThread?.parentElement],
+    ];
+    const seen = new Set();
+    for (const [label, el] of els) {
+      if (!el || seen.has(el)) continue;
+      seen.add(el);
+      parts.push("<!-- " + label + " -->\n" + el.outerHTML.slice(0, 250000));
     }
     if (parts.length === 1) parts.push(document.documentElement.outerHTML.slice(0, 300000));
     return parts.join("\n\n").slice(0, 600000);
