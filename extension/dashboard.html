@@ -1,0 +1,79 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Scenteno Commenter — Dashboard</title>
+<style>
+  :root { --bg:#fafafa; --card:#fff; --fg:#1b1b1b; --muted:#6b6b6b; --line:#e6e6e6; --ok:#1a7f37; --warn:#9a6700; --err:#c62828; --skip:#8a8a8a; --accent:#c00; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#121212; --card:#1c1c1c; --fg:#eee; --muted:#9a9a9a; --line:#2c2c2c; --ok:#4caf50; --warn:#e0b13a; --err:#ef5350; --skip:#777; } }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:14px/1.45 system-ui, sans-serif; }
+  header { display:flex; align-items:center; gap:16px; padding:16px 24px; border-bottom:1px solid var(--line); background:var(--card); position:sticky; top:0; z-index:1; }
+  header h1 { font-size:18px; margin:0; flex:1; }
+  header button, .controls button, select, input[type=search] { font:inherit; padding:6px 10px; border:1px solid var(--line); border-radius:6px; background:var(--card); color:var(--fg); cursor:pointer; }
+  main { padding:20px 24px; max-width:1200px; margin:0 auto; }
+  .tiles { display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:12px; margin-bottom:20px; }
+  .tile { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:12px 14px; }
+  .tile .n { font-size:26px; font-weight:600; }
+  .tile .l { color:var(--muted); font-size:12px; }
+  section { background:var(--card); border:1px solid var(--line); border-radius:8px; margin-bottom:20px; }
+  section h2 { font-size:14px; margin:0; padding:12px 14px; border-bottom:1px solid var(--line); display:flex; align-items:center; gap:10px; }
+  section h2 .controls { margin-left:auto; display:flex; gap:8px; font-weight:normal; }
+  .wrap { overflow-x:auto; }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th, td { text-align:left; padding:7px 12px; border-bottom:1px solid var(--line); white-space:nowrap; }
+  th { color:var(--muted); font-weight:500; font-size:12px; }
+  tbody tr:hover { background:rgba(127,127,127,.06); }
+  td.mono { font-family:ui-monospace, monospace; font-size:12px; }
+  .ok { color:var(--ok); } .err { color:var(--err); } .skip { color:var(--skip); } .warn { color:var(--warn); }
+  .pill { display:inline-block; padding:1px 8px; border-radius:10px; font-size:11px; border:1px solid currentColor; }
+  .kind { text-transform:capitalize; }
+  .strip { display:flex; gap:3px; padding:12px 14px; align-items:flex-end; height:70px; }
+  .strip .day { flex:1; display:flex; flex-direction:column; justify-content:flex-end; gap:2px; min-width:8px; }
+  .strip .bar { border-radius:2px; min-height:2px; }
+  .strip .bar.ok { background:var(--ok); } .strip .bar.err { background:var(--err); }
+  .legend { color:var(--muted); font-size:12px; padding:0 14px 10px; }
+  .fail { display:flex; gap:14px; padding:12px 14px; border-bottom:1px solid var(--line); }
+  .fail img { width:180px; border:1px solid var(--line); border-radius:4px; cursor:zoom-in; }
+  .fail .meta { flex:1; }
+  .fail .meta small { color:var(--muted); }
+  .empty { padding:24px; color:var(--muted); text-align:center; }
+  a { color:inherit; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Scenteno Commenter</h1>
+  <span id="next" style="color:var(--muted);font-size:12px"></span>
+  <label style="font-size:12px"><input type="checkbox" id="dry"> dry run</label>
+  <button data-kind="shorts">Run Shorts</button>
+  <button data-kind="posts">Run Posts</button>
+  <button id="export">Export JSON</button>
+</header>
+<main>
+  <div class="tiles" id="tiles"></div>
+
+  <section>
+    <h2>Activity — last 30 days</h2>
+    <div class="strip" id="strip"></div>
+    <div class="legend"><span class="ok">■</span> commented / pinned &nbsp; <span class="err">■</span> errors</div>
+  </section>
+
+  <section>
+    <h2>Runs <span class="controls"><select id="runKind"><option value="">all</option><option value="shorts">shorts</option><option value="posts">posts</option></select></span></h2>
+    <div class="wrap"><table><thead><tr><th>When</th><th>Kind</th><th>Trigger</th><th>Items</th><th>Done</th><th>Skipped</th><th>Errors</th><th>Duration</th><th>Outcome</th></tr></thead><tbody id="runs"></tbody></table></div>
+  </section>
+
+  <section>
+    <h2>Items <span class="controls"><input type="search" id="q" placeholder="filter id / status"><select id="itemKind"><option value="">all</option><option value="shorts">shorts</option><option value="posts">posts</option></select><select id="itemStatus"><option value="">any status</option></select></span></h2>
+    <div class="wrap"><table><thead><tr><th>Item</th><th>Kind</th><th>Status</th><th>Last touched</th><th></th></tr></thead><tbody id="items"></tbody></table></div>
+  </section>
+
+  <section>
+    <h2>Failures <span class="controls"><button id="clearFail">clear</button></span></h2>
+    <div id="failures"></div>
+  </section>
+</main>
+<script src="dashboard.js"></script>
+</body>
+</html>

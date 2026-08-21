@@ -1,0 +1,41 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  body { font: 13px system-ui, sans-serif; width: 380px; margin: 0; padding: 12px; color: #222; }
+  h1 { font-size: 15px; margin: 0 0 10px; }
+  .row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+  button { padding: 6px 10px; cursor: pointer; }
+  input[type=text], input[type=password], input:not([type]) { padding: 5px 6px; font: inherit; }
+  #progress { background: #f3f3f3; border-radius: 6px; padding: 8px; margin: 8px 0; min-height: 18px; white-space: pre-wrap; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  td { padding: 2px 4px; border-bottom: 1px solid #eee; vertical-align: top; }
+  td:first-child { font-family: monospace; max-width: 170px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .err { color: #b00; } .ok { color: #080; } .skip { color: #888; }
+  details { margin-top: 8px; } summary { cursor: pointer; }
+  .fail { border-left: 3px solid #b00; padding-left: 6px; margin: 6px 0; }
+  .fail a { font-size: 11px; }
+  #clear { float: right; font-size: 11px; }
+</style>
+</head>
+<body>
+  <h1>Scenteno Commenter</h1>
+  <div class="row">
+    <button data-kind="shorts">Run Shorts</button>
+    <button data-kind="posts">Run Posts</button>
+    <label><input type="checkbox" id="dry"> dry run</label>
+    <button id="dash">Dashboard</button>
+  </div>
+  <div id="progress">idle</div>
+  <button id="clear" title="Forget which items are done" style="font-size:11px">reset state</button>
+  <div id="reports"></div>
+  <details id="settings"><summary>Remote dashboard (Railway)</summary>
+    <div class="row" style="margin-top:6px"><input id="serverUrl" placeholder="https://your-app.up.railway.app" style="flex:1"></div>
+    <div class="row"><input id="token" type="password" placeholder="INGEST_TOKEN" style="flex:1"><button id="saveSettings">Save</button></div>
+    <div id="reportStatus" style="font-size:11px;color:#888"></div>
+  </details>
+  <details id="failDetails"><summary>Failures (<span id="failCount">0</span>)</summary><div id="failures"></div></details>
+  <script src="popup.js"></script>
+</body>
+</html>

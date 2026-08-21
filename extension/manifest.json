@@ -1,0 +1,22 @@
+{
+  "manifest_version": 3,
+  "name": "Scenteno Commenter",
+  "version": "1.0.0",
+  "description": "Comments + pins the Brotherhood of Scent link on the newest @Scenteno Shorts and Community posts.",
+  "permissions": ["alarms", "storage", "scripting", "tabs"],
+  "host_permissions": ["https://www.youtube.com/*"],
+  "background": {
+    "service_worker": "background.js",
+    "scripts": ["background.js"]
+  },
+  "action": {
+    "default_title": "Scenteno Commenter",
+    "default_popup": "popup.html"
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "scenteno-commenter@scenteno.com",
+      "strict_min_version": "115.0"
+    }
+  }
+}
