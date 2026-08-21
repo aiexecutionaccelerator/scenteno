@@ -145,6 +145,9 @@ async function run(kind, dryRun) {
   const results = [];
   const startedAt = new Date().toISOString();
   let tab;
+  // Firefox suspends the background page after ~30s without extension-API activity, even
+  // mid-await. A cheap API call every 15s keeps it alive for the duration of the run.
+  const keepAlive = setInterval(() => chrome.runtime.getPlatformInfo().catch(() => {}), 15000);
   try {
     await setProgress(kind, { stage: "starting" });
     tab = await chrome.tabs.create({ url: "https://www.youtube.com/", active: false });
@@ -202,6 +205,7 @@ async function run(kind, dryRun) {
     await recordRun(kind, dryRun, results, startedAt, e.message);
     await setProgress(kind, { stage: "error", message: e.message, results });
   } finally {
+    clearInterval(keepAlive);
     if (tab) chrome.tabs.remove(tab.id).catch(() => {});
     running = false;
   }
