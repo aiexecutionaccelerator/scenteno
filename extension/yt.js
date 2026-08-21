@@ -120,16 +120,19 @@
       '"Pin" menu item'
     );
     pinItem.click();
-    // YouTube only asks for confirmation when another comment is already pinned; for a first
-    // pin it pins immediately. Accept either: badge appears, or a confirm dialog shows up.
+    // YouTube only asks for confirmation when another comment is already pinned; a first pin
+    // applies immediately. After pinning, YouTube re-renders the comment as a NEW element at
+    // the top of the list, so look for the badge anywhere on the page (we verified there was
+    // no pinned comment before we started), not inside the now-detached `thread` node.
     const confirmSel = "yt-confirm-dialog-renderer #confirm-button button, yt-confirm-dialog-renderer #confirm-button, #confirm-button button";
+    const badge = () => $("ytd-pinned-comment-badge-renderer") || threads().some((t) => t.innerText.includes("Pinned by"));
     const outcome = await waitFor(
-      () => (thread.querySelector("ytd-pinned-comment-badge-renderer") && "pinned") || ($$(confirmSel).find(visible) && "dialog"),
+      () => (badge() && "pinned") || ($$(confirmSel).find(visible) && "dialog"),
       "pinned badge or confirm dialog"
     );
     if (outcome === "dialog") {
       $$(confirmSel).find(visible).click();
-      await waitFor(() => thread.querySelector("ytd-pinned-comment-badge-renderer") || $("ytd-pinned-comment-badge-renderer"), "pinned badge");
+      await waitFor(badge, "pinned badge");
     }
   }
 
@@ -161,6 +164,18 @@
     return { status: "commented+pinned", title };
   }
 
+  // Failure evidence: the comments section (where everything we do happens) plus any open
+  // dialog/menu — a full YouTube page is several MB and the first 300 KB is just headers.
+  function evidenceHtml() {
+    const parts = ["<!-- url: " + location.href + " | title: " + document.title + " -->"];
+    for (const sel of ["ytd-popup-container", "ytd-comments#comments", "ytd-engagement-panel-section-list-renderer[target-id*='comment']"]) {
+      const el = $(sel);
+      if (el) parts.push("<!-- " + sel + " -->\n" + el.outerHTML.slice(0, 250000));
+    }
+    if (parts.length === 1) parts.push(document.documentElement.outerHTML.slice(0, 300000));
+    return parts.join("\n\n").slice(0, 600000);
+  }
+
   window.__scenteno = { collect, process }; // for manual testing from the devtools console
 
   if (typeof chrome === "undefined" || !chrome.runtime?.onMessage) return; // loaded outside the extension (tests)
@@ -168,7 +183,7 @@
     if (msg?.target !== "yt") return;
     const job = msg.cmd === "collect" ? collect(msg.part, msg.limit, msg.scrolls) : process(msg.kind, msg.dryRun, msg.comments);
     job.then((r) => sendResponse({ ok: true, result: r }))
-       .catch((e) => sendResponse({ ok: false, error: String(e && e.message || e), html: document.documentElement.outerHTML.slice(0, 300000) }));
+       .catch((e) => sendResponse({ ok: false, error: String(e && e.message || e), html: evidenceHtml() }));
     return true; // async response
   });
 })();

@@ -135,16 +135,17 @@ def pin_thread(page, thread):
     page.get_by_role("menuitem", name="Pin").first.click(timeout=STEP_TIMEOUT)
     # YouTube only asks for confirmation when another comment is already pinned;
     # a first pin applies immediately. Accept either outcome.
-    badge = thread.locator("ytd-pinned-comment-badge-renderer")
+    # After pinning, YouTube re-renders the comment as a new element at the top, so
+    # look for the badge anywhere (there was no pinned comment before we started).
     confirm = page.locator("yt-confirm-dialog-renderer #confirm-button")
     deadline = time.time() + STEP_TIMEOUT / 1000
     while time.time() < deadline:
-        if badge.count() > 0:
+        if pinned_present(page):
             return
         if confirm.count() > 0 and confirm.first.is_visible():
             confirm.first.click()
-            badge.first.wait_for(state="visible", timeout=STEP_TIMEOUT)
-            return
+            deadline = time.time() + STEP_TIMEOUT / 1000
+            continue
         time.sleep(0.25)
     raise PWTimeout("neither pinned badge nor confirm dialog appeared")
 

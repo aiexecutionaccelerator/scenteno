@@ -53,7 +53,7 @@ app.post("/api/runs", cors, async (req, res) => {
       await c.query(
         `INSERT INTO failures (source, item_id, error, ts, screenshot, html) VALUES ($1,$2,$3,$4,$5,$6)
          ON CONFLICT (source, item_id, ts) DO NOTHING`,
-        [source, f.id, f.error, f.ts, f.screenshot || null, f.html ? String(f.html).slice(0, 300000) : null]);
+        [source, f.id, f.error, f.ts, f.screenshot || null, f.html ? String(f.html).slice(0, 600000) : null]);
     // keep the table small — screenshots are the only heavy thing we store
     await c.query(`DELETE FROM failures WHERE id NOT IN (SELECT id FROM failures ORDER BY ts DESC LIMIT 50)`);
     await c.query("COMMIT");
