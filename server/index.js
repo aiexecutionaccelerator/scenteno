@@ -93,10 +93,12 @@ app.get("/api/data", async (_req, res) => {
 });
 app.get("/api/comments", async (_req, res) => res.json(await getComments()));
 app.put("/api/comments", async (req, res) => {
-  const { bos, hod, hodKeyword } = req.body || {};
-  if (typeof bos !== "string" || typeof hod !== "string" || !bos.trim() || !hod.trim())
-    return res.status(400).json({ error: "bos and hod must be non-empty strings" });
-  const value = { bos: bos.trim(), hod: hod.trim(), hodKeyword: (hodKeyword || "house of dastan").trim().toLowerCase() };
+  const { default: def, rules } = req.body || {};
+  if (typeof def !== "string" || !def.trim() || !Array.isArray(rules))
+    return res.status(400).json({ error: "need a non-empty default and a rules array" });
+  const clean = rules.map((r) => ({ keyword: String(r?.keyword || "").trim().toLowerCase(), text: String(r?.text || "").trim() }));
+  if (clean.some((r) => !r.keyword || !r.text)) return res.status(400).json({ error: "every rule needs a keyword and a comment" });
+  const value = { default: def.trim(), rules: clean };
   await pool.query(`INSERT INTO config (key, value) VALUES ('comments', $1) ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`, [JSON.stringify(value)]);
   res.json(value);
 });

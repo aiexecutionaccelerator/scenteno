@@ -38,30 +38,46 @@ $("#clearFail")?.addEventListener("click", async () => {
 
 // ---------- comment text editor ----------
 const DEFAULT_COMMENTS = {
-  bos: "https://scenteno.com/yt12  Join the Brotherhood of Scent to get fragrance advice from a supportive community — and share advice, opinions, and experience with fragrance brothers.",
-  hod: "https://www.realmenrealstyle.com/best-frags  Ready to upgrade your fragrance game? Check out House of Dastan here.",
-  hodKeyword: "house of dastan",
+  default: "https://scenteno.com/yt12  Join the Brotherhood of Scent to get fragrance advice from a supportive community \u2014 and share advice, opinions, and experience with fragrance brothers.",
+  rules: [{ keyword: "house of dastan", text: "https://www.realmenrealstyle.com/best-frags  Ready to upgrade your fragrance game? Check out House of Dastan here." }],
 };
+const normalizeComments = (c) => !c ? DEFAULT_COMMENTS
+  : c.bos ? { default: c.bos, rules: c.hod ? [{ keyword: c.hodKeyword || "house of dastan", text: c.hod }] : [] }
+  : { default: c.default || DEFAULT_COMMENTS.default, rules: c.rules || [] };
 async function loadComments() {
   if (IN_EXTENSION) return (await chrome.storage.local.get("comments")).comments;
   const r = await fetch("/api/comments", { cache: "no-store" }); return r.ok ? r.json() : null;
 }
-async function showComments() {
-  const c = { ...DEFAULT_COMMENTS, ...((await loadComments()) || {}) };
-  $("#cBos").value = c.bos; $("#cHod").value = c.hod; $("#cKw").value = c.hodKeyword;
-  $("#commentsStatus").textContent = IN_EXTENSION
-    ? "Applies to this browser only. If a Railway server is configured, its text takes precedence."
-    : "Applies to every browser reporting to this server, from its next run.";
+function ruleRow(rule = { keyword: "", text: "" }) {
+  const div = document.createElement("div");
+  div.className = "rule";
+  div.innerHTML = `<div class="head">If the title / post contains <input class="kw" placeholder="keyword, e.g. house of dastan"> post this comment instead:<button class="rm" title="Remove rule">remove</button></div><textarea rows="2"></textarea>`;
+  div.querySelector(".kw").value = rule.keyword;
+  div.querySelector("textarea").value = rule.text;
+  div.querySelector(".rm").addEventListener("click", () => div.remove());
+  return div;
 }
+async function showComments() {
+  const c = normalizeComments(await loadComments());
+  $("#cDefault").value = c.default;
+  $("#rules").replaceChildren(...c.rules.map(ruleRow));
+  $("#commentsStatus").textContent = (IN_EXTENSION
+    ? "Applies to this browser only. If a Railway server is configured, its text takes precedence. "
+    : "Applies to every browser reporting to this server, from its next run. ")
+    + "Rules are checked top to bottom; the first match wins. Matching is case-insensitive.";
+}
+$("#addRule").addEventListener("click", () => { const row = ruleRow(); $("#rules").append(row); row.querySelector(".kw").focus(); });
 $("#saveComments").addEventListener("click", async () => {
-  const value = { bos: $("#cBos").value.trim(), hod: $("#cHod").value.trim(), hodKeyword: $("#cKw").value.trim().toLowerCase() };
-  if (!value.bos || !value.hod) return ($("#commentsStatus").textContent = "Both comments are required.");
+  const rules = [...$("#rules").querySelectorAll(".rule")].map((r) => ({ keyword: r.querySelector(".kw").value.trim().toLowerCase(), text: r.querySelector("textarea").value.trim() }));
+  const value = { default: $("#cDefault").value.trim(), rules };
+  if (!value.default) return ($("#commentsStatus").textContent = "The default comment is required.");
+  if (rules.some((r) => !r.keyword || !r.text)) return ($("#commentsStatus").textContent = "Every rule needs both a keyword and a comment (or remove it).");
   if (IN_EXTENSION) await chrome.storage.local.set({ comments: value });
   else {
     const r = await fetch("/api/comments", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(value) });
     if (!r.ok) return ($("#commentsStatus").textContent = "Save failed: HTTP " + r.status);
   }
-  $("#commentsStatus").textContent = "Saved " + new Date().toLocaleTimeString();
+  $("#commentsStatus").textContent = `Saved ${new Date().toLocaleTimeString()} \u2014 default + ${rules.length} rule(s).`;
 });
 showComments();
 

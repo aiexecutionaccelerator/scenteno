@@ -39,8 +39,11 @@
   .fail .meta small { color:var(--muted); }
   .empty { padding:24px; color:var(--muted); text-align:center; }
   a { color:inherit; }
-  textarea, #cKw { width:100%; font:inherit; padding:6px 8px; border:1px solid var(--line); border-radius:6px; background:var(--bg); color:var(--fg); margin-top:4px; }
-  #cKw { width:170px; display:inline-block; margin:0 0 0 4px; }
+  textarea, .kw { width:100%; font:inherit; padding:6px 8px; border:1px solid var(--line); border-radius:6px; background:var(--bg); color:var(--fg); margin-top:4px; }
+  .rule { border:1px solid var(--line); border-radius:8px; padding:10px 12px; display:grid; gap:6px; }
+  .rule .head { display:flex; align-items:center; gap:8px; font-size:13px; }
+  .rule .kw { width:220px; margin:0; display:inline-block; }
+  .rule .rm { margin-left:auto; font-size:12px; padding:3px 8px; }
 </style>
 </head>
 <body>
@@ -72,10 +75,10 @@
   </section>
 
   <section>
-    <h2>Comment text <span class="controls"><button id="saveComments">Save</button></span></h2>
-    <div style="padding:12px 14px;display:grid;gap:10px">
-      <label>Default comment (Brotherhood of Scent)<br><textarea id="cBos" rows="3"></textarea></label>
-      <label>House of Dastan comment &mdash; used when the title/post contains <input id="cKw" style="width:160px"><br><textarea id="cHod" rows="2"></textarea></label>
+    <h2>Comment text <span class="controls"><button id="addRule">+ Add rule</button><button id="saveComments">Save</button></span></h2>
+    <div style="padding:12px 14px;display:grid;gap:12px">
+      <label>Default comment &mdash; posted when no rule below matches<br><textarea id="cDefault" rows="3"></textarea></label>
+      <div id="rules"></div>
       <div id="commentsStatus" style="color:var(--muted);font-size:12px"></div>
     </div>
   </section>

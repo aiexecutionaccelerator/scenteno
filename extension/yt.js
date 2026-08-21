@@ -9,12 +9,19 @@
     "from a supportive community — and share advice, opinions, and experience with fragrance brothers.";
   const COMMENT_HOD =
     "https://www.realmenrealstyle.com/best-frags  Ready to upgrade your fragrance game? Check out House of Dastan here.";
-  const DEFAULTS = { bos: COMMENT_BOS, hod: COMMENT_HOD, hodKeyword: "house of dastan" };
+  // Config shape: { default: text, rules: [{ keyword, text }] } — first rule whose keyword
+  // appears in the title/post wins, otherwise `default`. Older {bos,hod,hodKeyword} is converted.
+  const DEFAULTS = { default: COMMENT_BOS, rules: [{ keyword: "house of dastan", text: COMMENT_HOD }] };
   const LEGACY_KEYS = ["scenteno.com/yt12", "realmenrealstyle.com/best-frags"];
   // Detection key = first URL in the comment minus protocol/www (what YouTube displays)
   const keyOf = (text) => (text.match(/https?:\/\/\S+/)?.[0] || text.slice(0, 40)).replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, "");
+  function normalize(c) {
+    if (!c) return DEFAULTS;
+    if (c.bos) return { default: c.bos, rules: c.hod ? [{ keyword: c.hodKeyword || "house of dastan", text: c.hod }] : [] };
+    return { default: c.default || DEFAULTS.default, rules: (c.rules || []).filter((r) => r.keyword && r.text) };
+  }
   let cfg = DEFAULTS;
-  const ourKeys = () => [...new Set([keyOf(cfg.bos), keyOf(cfg.hod), ...LEGACY_KEYS])];
+  const ourKeys = () => [...new Set([keyOf(cfg.default), ...cfg.rules.map((r) => keyOf(r.text)), ...LEGACY_KEYS])];
   const PROMO_KEYWORDS = ["% off", "sale", "off"];
   const STEP_TIMEOUT = 15000;
 
@@ -35,8 +42,10 @@
   const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 
   function getComment(subject) {
-    if (cfg.hodKeyword && subject.toLowerCase().includes(cfg.hodKeyword)) return { text: cfg.hod, key: keyOf(cfg.hod) };
-    return { text: cfg.bos, key: keyOf(cfg.bos) };
+    const s = subject.toLowerCase();
+    const rule = cfg.rules.find((r) => s.includes(r.keyword.toLowerCase()));
+    const text = rule ? rule.text : cfg.default;
+    return { text, key: keyOf(text) };
   }
 
   const threads = () => $$("ytd-comment-thread-renderer");
@@ -137,7 +146,7 @@
   }
 
   async function process(kind, dryRun, comments) {
-    cfg = { ...DEFAULTS, ...(comments || {}) };
+    cfg = normalize(comments);
     // page.title is set late on SPA loads; wait until it's a real one
     const title = await waitFor(() => {
       const t = document.title.trim();
